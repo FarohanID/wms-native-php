@@ -1,0 +1,10 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Jangan arahkan jika yang dibuka adalah file asli (seperti gambar/css)
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Arahkan sisanya ke index.php
+    RewriteRule ^(.*)$ index.php [L,QSA]
+</IfModule>
