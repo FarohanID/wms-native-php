@@ -1,0 +1,1 @@
+echo "WMS Project Initialized";
