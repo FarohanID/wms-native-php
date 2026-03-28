@@ -104,4 +104,20 @@ class SalesModel {
 
         return ['header' => $header, 'details' => $details];
     }
+
+    // Menghitung total uang dari seluruh transaksi yang sukses
+    public function getTotalSalesRevenue() {
+        $query = "SELECT SUM(total_amount) as total FROM orders WHERE payment_status = 'Paid'";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute();
+        return $stmt->fetch()['total'] ?? 0;
+    }
+
+    // Menghitung jumlah invoice yang sudah dibuat
+    public function getTotalOrdersCount() {
+        $query = "SELECT COUNT(*) as total FROM orders";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute();
+        return $stmt->fetch()['total'];
+    }
 }

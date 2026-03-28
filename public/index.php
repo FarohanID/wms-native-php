@@ -25,9 +25,9 @@ echo "<h1>WMS - Warehouse Management System</h1><hr>";
 echo "<nav>
         <a href='index.php?url=dashboard'>Dashboard</a> |
         <a href='index.php?url=inventory'>Inventory</a> | 
+        <a href='index.php?url=sales/add'>Transaksi COD</a> | 
         <a href='index.php?url=reports/history'>Laporan Opname</a> |
         <a href='index.php?url=reports/exits'>Laporan Barang Keluar</a> |
-        <a href='index.php?url=sales/add'>Transaksi COD</a> |
         <a href='index.php?url=reports/sales'>Laporan COD</a> |
       </nav><hr>";
 
@@ -38,6 +38,8 @@ if ($url == 'dashboard') {
     $totalItems = $productModel->getTotalProducts(); // Ambil data total produk
     $outOfStock = $productModel->getOutOfStockCount(); // Ambil data stok kosong
     $incomplete = $productModel->getIncompleteDataCount(); // Ambil data tidak lengkap
+    $totalRevenue = $salesModel->getTotalSalesRevenue(); // Ambil data total pendapatan
+    $totalOrders = $salesModel->getTotalOrdersCount(); // Ambil data total transaksi
     
     echo "<h3>Dashboard Ringkasan</h3>";
     echo "<div style='display: flex; gap: 20px; flex-wrap: wrap;'>
@@ -62,6 +64,10 @@ if ($url == 'dashboard') {
                 <p style='font-size: 24px; font-weight: bold; color: orange;'>$incomplete</p>
                 <small>Deskripsi/Kategori kosong</small>
             </div>
+
+            <div style='padding: 20px; border: 1px solid #ccc; border-radius: 8px; min-width: 200px;'>
+                <h4>Total Pendapatan COD</h4>
+                <p style='font-size: 24px; font-weight: bold; color: green;'>Rp " . number_format($totalRevenue, 0, ',', '.') . "</p>
 
           </div>";
 
