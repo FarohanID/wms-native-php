@@ -1,9 +1,10 @@
 <?php
 
 class ProductModel {
-    private $db;
-    private $table = 'products';
+    private $db; // Properti untuk menyimpan koneksi database
+    private $table = 'products'; // Nama tabel di database
 
+    // Konstruktor untuk menginisialisasi koneksi database
     public function __construct($database) {
         $this->db = $database->getHandler();
     }

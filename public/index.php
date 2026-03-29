@@ -1,9 +1,13 @@
 <?php
+// 1. Inisialisasi Session (Wajib di paling atas)
+session_start();
+
 // Menampilkan error untuk mempermudah debugging
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+// Namespace Dompdf
 use Dompdf\Dompdf;
 
 require_once '../app/config/database.php';
@@ -20,7 +24,54 @@ $salesModel = new SalesModel($db);
 
 $url = isset($_GET['url']) ? $_GET['url'] : 'dashboard';
 
-// Navigasi Utama
+// --- LOGIKA AUTHENTICATION ---
+
+// A. Proses Login
+if ($url == 'auth/process') {
+    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+        $user = $_POST['username'];
+        $pass = $_POST['password'];
+
+        $query = "SELECT * FROM users WHERE username = :username";
+        $stmt = $db->getHandler()->prepare($query);
+        $stmt->execute([':username' => $user]);
+        $userData = $stmt->fetch();
+
+        if ($userData && password_verify($pass, $userData['password'])) {
+            $_SESSION['user_id'] = $userData['id'];
+            $_SESSION['user_name'] = $userData['full_name'];
+            header("Location: index.php?url=dashboard");
+        } else {
+            header("Location: index.php?url=login&error=1");
+        }
+        exit;
+    }
+}
+
+// B. Proses Logout
+if ($url == 'auth/logout') {
+    session_destroy();
+    header("Location: index.php?url=login");
+    exit;
+}
+
+// C. Auth Guard: Proteksi Halaman
+$publicPages = ['login', 'auth/process'];
+if (!isset($_SESSION['user_id']) && !in_array($url, $publicPages)) {
+    // Jika belum login, paksa ke halaman login
+    include '../app/views/auth/login.php';
+    exit;
+}
+
+// D. Tampilkan Login Page jika URL-nya 'login'
+if ($url == 'login') {
+    include '../app/views/auth/login.php';
+    exit;
+}
+
+
+// --- TAMPILAN HEADER & NAVIGASI (Hanya muncul jika sudah login) ---
+
 echo "<h1>WMS - Warehouse Management System</h1><hr>";
 echo "<nav>
         <a href='index.php?url=dashboard'>Dashboard</a> |
@@ -29,20 +80,37 @@ echo "<nav>
         <a href='index.php?url=reports/history'>Laporan Opname</a> |
         <a href='index.php?url=reports/exits'>Laporan Barang Keluar</a> |
         <a href='index.php?url=reports/sales'>Laporan COD</a> |
+        <a href='index.php?url=auth/logout' style='color: red;' onclick='return confirm(\"Keluar dari sistem?\")'>Logout (".$_SESSION['user_name'].")</a>
       </nav><hr>";
+
+// PROTEKSI MENU: Hanya Admin yang bisa lihat menu Manajemen User
+        if ($_SESSION['role'] == 'admin') {
+            echo " <a href='index.php?url=users' style='font-weight:bold; color:blue;'>[Manajemen User]</a> |";
+        }
+
+echo " <a href='index.php?url=auth/logout' style='color: red;'>Logout (".$_SESSION['user_name'].")</a>
+      </nav><hr>";
+
 
 // --- ROUTING SYSTEM ---
 
 if ($url == 'dashboard') {
-    $totalValue = $productModel->getTotalAssetValue(); // Ambil data total nilai aset
-    $totalItems = $productModel->getTotalProducts(); // Ambil data total produk
-    $outOfStock = $productModel->getOutOfStockCount(); // Ambil data stok kosong
-    $incomplete = $productModel->getIncompleteDataCount(); // Ambil data tidak lengkap
-    $totalRevenue = $salesModel->getTotalSalesRevenue(); // Ambil data total pendapatan
-    $totalOrders = $salesModel->getTotalOrdersCount(); // Ambil data total transaksi
+    $totalValue = $productModel->getTotalAssetValue(); 
+    $totalItems = $productModel->getTotalProducts(); 
+    $outOfStock = $productModel->getOutOfStockCount(); 
+    $incomplete = $productModel->getIncompleteDataCount(); 
+    $totalRevenue = $salesModel->getTotalSalesRevenue(); 
+    $totalOrders = $salesModel->getTotalOrdersCount(); 
     
     echo "<h3>Dashboard Ringkasan</h3>";
     echo "<div style='display: flex; gap: 20px; flex-wrap: wrap;'>
+            
+            <div style='padding: 20px; border: 2px solid green; border-radius: 8px; min-width: 200px; background: #f0fff0;'>
+                <h4 style='color: green;'>Total Pendapatan COD</h4>
+                <p style='font-size: 24px; font-weight: bold;'>Rp " . number_format($totalRevenue, 0, ',', '.') . "</p>
+                <small>$totalOrders Transaksi Berhasil</small>
+            </div>
+
             <div style='padding: 20px; border: 1px solid #ccc; border-radius: 8px; min-width: 200px;'>
                 <h4>Total Item Produk</h4>
                 <p style='font-size: 24px; font-weight: bold;'>$totalItems</p>
@@ -65,10 +133,6 @@ if ($url == 'dashboard') {
                 <small>Deskripsi/Kategori kosong</small>
             </div>
 
-            <div style='padding: 20px; border: 1px solid #ccc; border-radius: 8px; min-width: 200px;'>
-                <h4>Total Pendapatan COD</h4>
-                <p style='font-size: 24px; font-weight: bold; color: green;'>Rp " . number_format($totalRevenue, 0, ',', '.') . "</p>
-
           </div>";
 
 } elseif ($url == 'inventory') {
@@ -83,10 +147,10 @@ if ($url == 'dashboard') {
                 <th>Aksi</th>
             </tr>";
     foreach ($products as $p) {
-        $linkOpname = "index.php?url=inventory/opname&id={$p['id']}&name=" . urlencode($p['product_name']) . "&current_stock={$p['stock']}"; // Link untuk stock opname dan barang keluar
-        $linkExit = "index.php?url=inventory/exit&id={$p['id']}&name=" . urlencode($p['product_name']) . "&current_stock={$p['stock']}"; // Link untuk stock opname dan barang keluar
-        $linkEditPrice = "index.php?url=inventory/edit_price&id={$p['id']}&sku={$p['sku']}&name=" . urlencode($p['product_name']) . "&current_price={$p['price']}"; // Link untuk edit harga (opsional)
-        $linkHistory = "index.php?url=reports/price_history&id={$p['id']}"; // Link untuk melihat riwayat harga (opsional)
+        $linkOpname = "index.php?url=inventory/opname&id={$p['id']}&name=" . urlencode($p['product_name']) . "&current_stock={$p['stock']}";
+        $linkExit = "index.php?url=inventory/exit&id={$p['id']}&name=" . urlencode($p['product_name']) . "&current_stock={$p['stock']}";
+        $linkEditPrice = "index.php?url=inventory/edit_price&id={$p['id']}&sku={$p['sku']}&name=" . urlencode($p['product_name']) . "&current_price={$p['price']}";
+        $linkHistory = "index.php?url=reports/price_history&id={$p['id']}";
 
         echo "<tr>
                 <td>{$p['sku']}</td>
@@ -134,11 +198,9 @@ if ($url == 'dashboard') {
     }
 
 } elseif ($url == 'sales/add') {
-    // Siapkan data invoice dan list produk untuk form dinamis
     $invoiceNumber = $salesModel->generateInvoiceNumber();
     $productsRaw = $productModel->getAllProducts();
     
-    // Format JSON untuk kebutuhan JavaScript di view
     $productsJSON = array_map(function($p) {
         return [
             'id' => $p['id'],
@@ -160,11 +222,8 @@ if ($url == 'dashboard') {
         ];
         
         $itemsData = $_POST['items'];
-
-        // 1. Simpan Transaksi ke Database (Header & Detail)
         $orderId = $salesModel->createSalesOrder($headerData, $itemsData);
 
-        // 2. Potong Stok per item yang terjual
         foreach ($itemsData as $item) {
             $product = $productModel->getById($item['product_id']);
             $newStock = $product['stock'] - $item['quantity'];
@@ -189,6 +248,7 @@ if ($url == 'dashboard') {
 } elseif ($url == 'reports/sales_detail') {
     $details = $salesModel->getOrderDetails($_GET['id']);
     include '../app/views/reports/sales_detail.php';
+
 } elseif ($url == 'inventory/edit_price') {
     include '../app/views/inventory/edit_price.php';
 
@@ -196,8 +256,6 @@ if ($url == 'dashboard') {
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $id = $_POST['product_id'];
         $newPrice = $_POST['new_price'];
-        
-        // Ambil data lama dulu untuk dicatat di history
         $product = $productModel->getById($id);
         $oldPrice = $product['price'];
 
@@ -211,13 +269,12 @@ if ($url == 'dashboard') {
     }
 
 } elseif ($url == 'reports/price_history') {
-    // Route baru untuk melihat semua riwayat harga (Opsional)
-    // Atau bisa dibuat per produk
     $id = $_GET['id'];
     $product = $productModel->getById($id);
     $history = $productModel->getPriceHistory($id);
     include '../app/views/reports/price_history.php';
-}  elseif ($url == 'sales/print_pdf') {
+
+} elseif ($url == 'sales/print_pdf') {
     $orderId = $_GET['id'];
     $data = $salesModel->getOrderForInvoice($orderId);
 
@@ -233,11 +290,39 @@ if ($url == 'dashboard') {
     $dompdf->setPaper('A4', 'portrait');
     $dompdf->render();
 
-    // Tambahkan ini untuk membersihkan buffer agar tidak ada teks yang bocor
     if (ob_get_length()) ob_end_clean();
 
     $dompdf->stream("Invoice-" . $data['header']['invoice_number'] . ".pdf", ["Attachment" => 0]);
-    exit; // Wajib pakai exit agar tidak ada kode di bawahnya yang tereksekusi
+    exit;
+} elseif ($url == 'users') {
+    // Hanya boleh diakses admin
+    if ($_SESSION['role'] !== 'admin') { die("Akses Ditolak!"); }
+    
+    $query = "SELECT id, username, full_name, role FROM users";
+    $stmt = $db->getHandler()->prepare($query);
+    $stmt->execute();
+    $allUsers = $stmt->fetchAll();
+    
+    include '../app/views/auth/users_list.php';
+
+} elseif ($url == 'users/add') {
+    if ($_SESSION['role'] !== 'admin') { die("Akses Ditolak!"); }
+    include '../app/views/auth/users_add.php';
+
+} elseif ($url == 'users/save') {
+    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+        $user = $_POST['username'];
+        $full = $_POST['full_name'];
+        $role = $_POST['role'];
+        $pass = password_hash($_POST['password'], PASSWORD_DEFAULT); // Keamanan hash!
+
+        $query = "INSERT INTO users (username, password, full_name, role) VALUES (:u, :p, :f, :r)";
+        $stmt = $db->getHandler()->prepare($query);
+        $stmt->execute([':u'=>$user, ':p'=>$pass, ':f'=>$full, ':r'=>$role]);
+        
+        header("Location: index.php?url=users");
+    }
+
 } else {
     echo "<h3>Halaman tidak ditemukan</h3>";
 }
