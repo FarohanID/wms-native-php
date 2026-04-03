@@ -15,12 +15,14 @@ require_once '../app/models/ProductModel.php';
 require_once '../app/models/OpnameModel.php';
 require_once '../app/models/ExitModel.php';
 require_once '../app/models/SalesModel.php';
+require_once '../app/core/Auth.php';
 
 $db = new Database();
 $productModel = new ProductModel($db);
 $opnameModel = new OpnameModel($db);
 $exitModel = new ExitModel($db);
 $salesModel = new SalesModel($db);
+$auth = new Auth($db);
 
 $url = isset($_GET['url']) ? $_GET['url'] : 'dashboard';
 
